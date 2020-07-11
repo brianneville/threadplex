@@ -1,25 +1,95 @@
-#include "c_threadpool.h"
+#include "threadpool.h"
 
-void* pull_from_queue(void* arg){
+static void register_pool(Pool** p){
+	pool_node* new = (pool_node*)malloc(sizeof(pool_node));
+	new->next = NULL;
+	new->pool = *p;
+	pool_node** curr = &pool_registry;
+	if(!pool_registry){
+		*curr = new;
+		return;
+	}
+	while((*curr)->next != NULL)*curr = (*curr)->next;
+	*curr = new;
+}
+
+static void unregister_pool(Pool** p){
+    pool_node* curr = pool_registry;
+	if(curr == NULL)return;
+	if(curr->pool == *p){
+		pool_registry = curr->next;
+		free(curr);
+		return;
+	}
+	pool_node* prev = NULL;
+    while (curr != NULL && curr->pool != *p){ 
+        prev = curr; 
+        curr = curr->next; 
+    }
+    if (curr == NULL) return; 
+    prev->next = curr->next; 
+    free(curr);	
+}
+
+// finds the threadpool and the id of the thread running this channel
+void match_registered_pool(Pool** p, int* thread_id){
+    // get thread_id;
+    pthread_t currthread = pthread_self();
+    // match this with current threadpool to get thread_id;    
+    pool_node* curr = pool_registry;
+	    while(curr != NULL){
+			pthread_t* threadptr = curr->pool->threads_pointer;
+			int pool_size = curr->pool->pool_size;
+			// heap grows downward, therefore address of last thread created will be lower than
+			// threadptr. minptr point to the last thread created by this pool
+			pthread_t* minptr = threadptr + (pool_size- 1)*(sizeof(pthread_t));
+			flog(DEBUG_REGISTRY, "\nthreadptr  %p\nmaxthreadptr %p\n", (void*)*threadptr, (void*)*minptr);
+		// confirm that currthread is in the contigous memory created for the threads in this pool
+		// size of heap alloc'd for these threads can vary,
+		// the thread_id is found with this taken into account.
+        if( currthread <= *threadptr && currthread >= *minptr){
+			*thread_id = (*threadptr - currthread) /
+				((*threadptr - *minptr) / (pool_size - 1));
+			flog(DEBUG_REGISTRY, "found currthread %p, thread_id %p / %p = %d \n",
+				(void*)currthread, (void*)(*threadptr - currthread),
+				(void*)((*threadptr - *minptr) / (pool_size - 1) ), *thread_id );
+            break;
+        }
+        curr = curr->next;
+    }
+    *p = curr->pool;
+}
+
+
+
+static void* pull_from_queue(void* arg){
 	Args* args = (Args*)arg;
 	int thread_id = args->thread_id;
 	Pool* pool = args->pool;
 	char *act = (pool->thread_active + thread_id);
 	//pop node from queue
 	xNode* queue_item;
-	while (1){	
 
+	// register return env with scheduler
+	jmp_buf* env = (jmp_buf*)malloc(sizeof(jmp_buf));
+	if (setjmp(*env) == JMP_TO_POOL){
+		flog(DEBUG_SCHED, "thread_id %d jumped back\n", thread_id);
+		goto startpulling;
+	}
+	// store reference to this env in the env_store
+	jmp_buf** iter = &(pool->chan_scheduler->env_store);
+	*(iter+thread_id*sizeof(jmp_buf))= env;
+
+	while (1){	
+startpulling:
 		pthread_mutex_lock(&(pool->queue_guard_mtx));
 		while (!pool->queue.tail && !(*act)){
-			#if DEBUG_C_THREADPOOL
- 				printf("thread %d is sleeping\n",thread_id);
-			#endif
+ 			log(DEBUG_THREADPOOL, "thread %d is sleeping\n", thread_id);
 				if (!pool->remaining_work && !pool->queue.tail){
 					//if all work from other threads has been done
 					pthread_cond_signal(&(pool->block_main));
 				}
 			pthread_cond_wait(&pool->hold_threads, &(pool->queue_guard_mtx));
-
 		}
 		
 		queue_item = pop_node_queue(&(pool->queue));
@@ -30,13 +100,9 @@ void* pull_from_queue(void* arg){
 			q_obj = (QueueObj*)queue_item->data;
 			function_ptr f = q_obj->func;
 			void* args = q_obj->args;
-			#if DEBUG_C_THREADPOOL
-				printf("thread %d is working\n",thread_id);
-			#endif
+			log(DEBUG_THREADPOOL, "thread %d is working\n", thread_id);		
 			(*f)(args);
-			#if DEBUG_C_THREADPOOL
-				printf("thread %d has finished working\n",thread_id);
-			#endif
+			log(DEBUG_THREADPOOL, "thread %d has finished working\n", thread_id);
 			free(q_obj);
 			pool->remaining_work--;
 			*act = 0;
@@ -46,9 +112,7 @@ void* pull_from_queue(void* arg){
 
 	}
 	pool->living_threads--;
-	#if DEBUG_C_THREADPOOL
-		printf("\033[1;31mExiting thread %d \033[0m\n",thread_id  );
-	#endif
+	log(DEBUG_THREADPOOL, "\033[1;31mExiting thread %d \033[0m\n", thread_id  );
 	pthread_exit(NULL);
 }
 
@@ -72,22 +136,16 @@ void push_to_queue(Pool* pool, function_ptr f, void* args, char block){
 		}
 	}
 	pthread_mutex_unlock(&(pool->queue_guard_mtx));
-	#if DEBUG_C_THREADPOOL
-		printf("\033[1;32mfinished pushing\033[0m\n");
-	#endif
+	log(DEBUG_THREADPOOL,"\033[1;32mfinished pushing\033[0m\n");
 	if(block){
-		#if DEBUG_C_THREADPOOL
-			printf("\nblocking main\n");
-		#endif
+		log(DEBUG_THREADPOOL, "\nblocking main\n");
 		pthread_cond_broadcast(&(pool->hold_threads));
 		while(pool->remaining_work ){
 			pthread_cond_wait(&(pool->block_main), &(pool->mtx_spare));
 		}
 		
 		pthread_mutex_unlock(&(pool->mtx_spare));
-		#if DEBUG_C_THREADPOOL
-			printf("unblocking main\n\n");
-		#endif
+		log(DEBUG_THREADPOOL, "unblocking main\n\n");
 		pool->updating_queue = 0;
 		pool->living_threads = pool->pool_size;
 		
@@ -97,7 +155,6 @@ void push_to_queue(Pool* pool, function_ptr f, void* args, char block){
 			memset(pool->thread_active, 1, pool->pool_size*sizeof(char));	//mark all threads as active to escape while loop
 			while(pool->living_threads)pthread_cond_broadcast(&(pool->hold_threads));
 		}
-				
 	}
 }
 
@@ -106,13 +163,16 @@ void prepare_push(Pool* pool, char exit_on_empty_queue){
 	pool->updating_queue = 1;
 }
 
-void init_pool(Pool* pool,  char pool_size){	
+void init_pool(Pool* pool, char pool_size){	
 	// this function initialises a threadpool pointer;
 	pool->pool_size = pool_size;
 	pool->remaining_work = 0;
 	//initialise the linkedlist queue used to push arguemnts into the pool
 	init_xLinkedList(&(pool->queue));
 	
+	// initialise scheduler used for channels
+	sched_init(&(pool->chan_scheduler), pool_size);
+
 	//initialse bool to mark whether or not the threads should terminate after the queue is empty
 	pool->updating_queue = 0;
 	 
@@ -136,9 +196,7 @@ void init_pool(Pool* pool,  char pool_size){
 		Args* new_args = (Args*)malloc(sizeof(Args));		//struct for args
 		new_args->thread_id = i;
 		new_args->pool = pool;
-		#if DEBUG_C_THREADPOOL 
-			printf("created thread id = %d\n", i);
-		#endif
+		log(DEBUG_THREADPOOL, "created thread id = %d\n", i);
 
 		pthread_create(thr_p, NULL, pull_from_queue, (void *)(new_args));	// create threads
 
@@ -149,12 +207,16 @@ void init_pool(Pool* pool,  char pool_size){
 		//advance pointer
 		thr_p += sizeof(pthread_t);
 	}
+	
+	// add pool to the registry of all pools being used
+	register_pool(&pool);
 }
 
 void cleanup(Pool* pool){
 	//free() up memory that has been malloced
 	free(pool->threads_pointer);
 	free(pool->thread_active);
+	unregister_pool(&pool);
 }
 
 

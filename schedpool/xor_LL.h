@@ -1,22 +1,18 @@
 #ifndef XOR_LL_H_
 #define XOR_LL_H_
 
-#ifndef DEBUG_XOR_LL
-#define DEBUG_XOR_LL 0		// change this to view debug information on the XOR linked list
-#endif
-
 #include <stdlib.h>
 #include <stdio.h>
-
+#include "logging.h"
 
 typedef struct xNode{
-	unsigned long address_ptr;		// this address pointer store prev_address XOR next address 
+	unsigned long address_ptr;  // this address pointer store prev_address XOR next address 
 	void* data;
 }xNode;
 
 typedef struct xLinkedList{
-	xNode* tail;	// this is a pointer to the youngest (most recently added) node on the list
-	xNode* head; 	// this is a pointer to the oldest (least recently added) node on the list
+	xNode* tail;  // this is a pointer to the youngest (most recently added) node on the list
+	xNode* head;  // this is a pointer to the oldest (least recently added) node on the list
 }xLinkedList;
 
 

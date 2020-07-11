@@ -1,0 +1,5 @@
+setjmp/jongjmp is undefined cross-thread. 
+    * https://stackoverflow.com/questions/38234546/setjmp-longjmp-between-threads-to-handle-timeout
+    * https://pubs.opengroup.org/onlinepubs/9699919799/functions/longjmp.html 
+I should use ucontext_t instead, in a similar way
+    * https://mail-index.netbsd.org/tech-kern/2012/08/09/msg013767.html
