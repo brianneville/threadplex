@@ -22,6 +22,11 @@ typedef struct sched{
     hashtable* hash_pull;
     hashtable* hash_push;
     jmp_buf* env_store;     // store return points for starting to pull from queue
+    
+    // map env to thread_id. this is required to ensure that setjmp/longjmp only happens for 
+    // envs that run on the same thread. 
+    hashtable* env_to_thread;
+    pthread_mutex_t sched_lock;
 }sched;
 
 void sched_init(sched** s, int pool_size);

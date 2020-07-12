@@ -1,0 +1,10 @@
+- what happens if channel operations run in the main thread?
+    ^ this is currently unsuppored as main thread is running outside of scheduler
+
+- write handling for case where env that needs to run is in another thread
+
+- convert all types to stdint.h types to improve portability
+
+- make sure that pull_from_queue waits until there are no envs in either hash_pull or hash_push
+  which match the current thread_id. if there are envs that match the current thread_id, they might 
+  eventually get unblocked by another thread's functions.

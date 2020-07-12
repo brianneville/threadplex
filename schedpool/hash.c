@@ -1,14 +1,27 @@
 #include "hash.h"
 
-static int hash(hashtable* h, int key){
-    return key % h->table_size;
+int hashfunc_modkey(hashtable* h, int key){
+    const int table_size = h->table_size;
+    return key >= table_size ? key % table_size : key;
 }
 
-hashtable* hashtable_create(int table_size, int use_chaining){
+int hashfunc_sumpointer(hashtable* h, int key){
+    int hash=0;
+    unsigned int k = key * 0x9E3779B9;
+    while(k){
+        hash += k & 0xf;
+        k >>= 8;
+    }
+    return hash % h->table_size;
+}
+
+
+hashtable* hashtable_create(int table_size, int use_chaining, hashfunc hashf){
     hashtable* h = (hashtable*)malloc(sizeof(hashtable));
     h->table_size = table_size;
     h->table = (node**)calloc(table_size, sizeof(node*));
     h->use_chaining = use_chaining;
+    h->hashfunc = hashf;
 	pthread_mutex_init(&(h->hashlock), NULL);
     return h;
 }
@@ -30,7 +43,7 @@ void hashtable_print(hashtable* h){
 // this means that multiple goroutines can all talk to the same channel, and the
 // order which these messages are pulled from the queue will be logical?
 void hashtable_insert(hashtable* h, unsigned long key, void* val){
-    int indx = hash(h, key);
+    int indx = h->hashfunc(h, key);
     pthread_mutex_lock(&(h->hashlock));
     node** headptr = &(h->table[indx]);
     node* new_entry = (node*)malloc(sizeof(node));
@@ -49,7 +62,7 @@ void hashtable_insert(hashtable* h, unsigned long key, void* val){
 }
 
 void* hashtable_remove(hashtable* h, unsigned long key){
-    int indx = hash(h, key);
+    int indx = h->hashfunc(h, key);
     pthread_mutex_lock(&(h->hashlock));
     node** headptr = &(h->table[indx]);
     while(*headptr != NULL && (*headptr)->key != key){
@@ -63,7 +76,7 @@ void* hashtable_remove(hashtable* h, unsigned long key){
 
 // hashtable_find returns the item if found, NULL if not present
 node* hashtable_find(hashtable* h, unsigned long key){
-    int indx = hash(h, key);
+    int indx = h->hashfunc(h, key);
     node* head = h->table[indx];
     while(head && head->key != key){
         head = head->next;
@@ -87,8 +100,8 @@ void hashtable_cleanup(hashtable* h){
 
 static void test(){
     hashtable* h;
-    int table_size = 10;
-    h = hashtable_create(table_size, NO_CHAINING);
+    const int table_size = 10;
+    h = hashtable_create(table_size, USE_CHAINING, hashfunc_modkey);
     hashtable_insert(h, 2, (void*)1);
     hashtable_insert(h, 12, (void*)2);
     hashtable_insert(h, 22, (void*)3);
@@ -109,5 +122,5 @@ static void test(){
 }
 
 // int main(){
-//     test();
+//      test();
 // }

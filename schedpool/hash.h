@@ -23,11 +23,17 @@ typedef struct hashtable{
     node** table;
     pthread_mutex_t hashlock;
     int table_size;
-    int use_chaining;
+    int use_chaining : 1;  // if 1, collisions will be chained. if 0 then collisions will overwrite.
+    int (*hashfunc)(struct hashtable* h, int key);
 }hashtable;
 
+typedef int (*hashfunc)(struct hashtable* h, int key);
+
+int hashfunc_modkey (hashtable* h, int key);
+int hashfunc_sumpointer (hashtable* h, int key);
+
 // create a new hashtable with table_size slots of type node*. collisions are chained.
-hashtable* hashtable_create(int table_size, int use_chaining);
+hashtable* hashtable_create(int table_size, int use_chaining, hashfunc hashf);
 
 //insert into hashtable
 void hashtable_insert(hashtable* h, unsigned long key, void* val);
