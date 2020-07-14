@@ -14,6 +14,7 @@
 typedef struct chan{
     void** buffer;
     int buf_head;
+    int pull_head;
     int cap;
     int id;
     pthread_mutex_t lock; // lock for in/out operations

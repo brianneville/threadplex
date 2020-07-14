@@ -33,13 +33,13 @@ static void sched_executionredirect(sched* chan_scheduler, uint key, int thread_
 
     // E.g. if action is PULL, then opposite_attempt represents an attempt to PUSH into a channel.
     node* opposite_attempt = hashtable_remove(opposite_chankey_to_currenv, key);
-    log(DEBUG_SCHED, "thread_id = %d, opposite_attempt val = \ 
+    log(DEBUG_SCHED, "thread_id = %d, opposite_attempt val = \
          %p \n\t(nil if opposite_attempt is nil)\n", thread_id, 
          opposite_attempt ? opposite_attempt->val : NULL);
     if (opposite_attempt){
         node* envid_node = hashtable_remove(chan_scheduler->env_to_id, 
             (unsigned long)opposite_attempt->val);
-        log(DEBUG_SCHED, " envid node = %p\n", envid_node);
+        log(DEBUG_SCHED, "envid node = %p\n", envid_node);
         if (envid_node->val == (void*)thread_id){
             log(DEBUG_SCHED, "opposite attempt is in the same thread, jumping to it\n");
             pthread_mutex_unlock(&(chan_scheduler->sched_lock));
@@ -50,21 +50,21 @@ static void sched_executionredirect(sched* chan_scheduler, uint key, int thread_
              (unsigned long)envid_node->val, (void*)opposite_attempt->val);
     }
     pthread_mutex_unlock(&(chan_scheduler->sched_lock));
-    flog(DEBUG_SCHED, "jumping to pull a new function from the queue\n");
+    log(DEBUG_SCHED, "jumping to pull a new function from the queue\n");
     jump_threadpull(chan_scheduler, thread_id);
 }
 
 // pushing to a full channel.
 // store env on hash_push, unlock mtx and jump away
 void sched_pushing_full(sched* chan_scheduler, uint key, int thread_id, pthread_mutex_t* mtx){
-    flog(DEBUG_SCHED, "pushing full, sched is %p\n", (void*)chan_scheduler);
+    log(DEBUG_SCHED, "pushing full, sched is %p\n", (void*)chan_scheduler);
     sched_executionredirect(chan_scheduler, key, thread_id, mtx, JMP_TO_CHPUSH, JMP_TO_CHPULL,
     chan_scheduler->hash_push, chan_scheduler->hash_pull);
 }
 
 // pulling from an empty channel
 void sched_pulling_empty(sched* chan_scheduler, uint key, int thread_id, pthread_mutex_t* mtx){
-    flog(DEBUG_SCHED, "pulling empty, sched is %p\n", (void*)chan_scheduler);
+    log(DEBUG_SCHED, "pulling empty, sched is %p\n", (void*)chan_scheduler);
     sched_executionredirect(chan_scheduler, key, thread_id, mtx, JMP_TO_CHPULL, JMP_TO_CHPUSH,
     chan_scheduler->hash_pull, chan_scheduler->hash_push);
 }
@@ -89,24 +89,12 @@ void sched_init(sched** s, int pool_size){
 
     // store for envs at start of threadpool pulling
     (*s)->env_store = (jmp_buf*)malloc(pool_size*sizeof(jmp_buf));
-
-    // hashtable storing chain of functions that need to be pulled
 }
 
-void sched_destroy(sched* s){}
-
-
-// void suspend(sched* s){
-//     s->suspendedCount++;
-//     realloc(s->suspendedContexts, s->suspendedCount * sizeof(ucontext_t));
-//     goto 
-
-// }
-
-// void unsuspend(sched* s){
-//     s->suspendedCount--;
-//     realloc(s->suspendedContexts, s->suspendedCount * sizeof(ucontext_t));
-//     // ucontext_t* ctx = 
-//     // getcontext(ctx);
-
-// }
+void sched_destroy(sched* s){
+    hashtable_cleanup(s->hash_pull);
+    hashtable_cleanup(s->hash_push);
+    hashtable_cleanup(s->env_to_id);
+    hashtable_cleanup(s->pending_envs); 
+    free(s->env_store);
+}

@@ -42,7 +42,8 @@ void traverse_list(xLinkedList* list){
 	while (curr){
 		printf ("data is: %p \n", curr->data);
 		next = (xNode*)((unsigned long)prev ^ (unsigned long)curr->address_ptr);
-		printf ("prev is %p, curr is %p, next is %p, address_ptr is %p\n",prev, curr, next, (void*)curr->address_ptr);
+		printf ("prev is %p, curr is %p, next is %p, address_ptr is %p\n",prev, curr, next,
+		    (void*)curr->address_ptr);
 		prev = curr;
 		curr = next;
 	}
@@ -53,7 +54,8 @@ void delete_head_func(xLinkedList* list){
 	//xNode* next = NULL;
 	xNode* prev = (xNode*)((unsigned long)(curr->address_ptr));
 	log(DEBUG_XOR_LL, "list contains more than one xNode. deleting head\n");
-	//now go back to the previous node. set the prev node's address pointer to point only back to the node before it;
+	//now go back to the previous node. 
+	//set the prev node's address pointer to point only back to the node before it;
 	//therefore the head node can now be popped from the list
 	xNode* before_prev = (xNode* )((unsigned long)curr ^ (unsigned long)prev->address_ptr); 
 	prev->address_ptr = (unsigned long)before_prev;

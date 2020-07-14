@@ -9,7 +9,7 @@
 #define DEBUG_REGISTRY    0
 #define DEBUG_THREADPOOL  0
 #define DEBUG_XOR_LL      0
-#define DEBUG_SCHED       1
+#define DEBUG_SCHED       0
 #define DEBUG_CHAN        0
 
 #define execute_logger(tagname, dodebug, ...) \
@@ -21,7 +21,7 @@
 // log with printf to stdout
 #define log(tag, ...) execute_logger(#tag, tag, __VA_ARGS__)
 
-// log with fprintf to stder
+// log with fprintf to stderr
 #define flog(tag, ...) execute_err_logger(#tag, tag, __VA_ARGS__)
 
 #endif 

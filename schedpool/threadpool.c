@@ -43,14 +43,15 @@ void match_registered_pool(Pool** p, int* thread_id){
 			// heap grows downward, therefore address of last thread created will be lower than
 			// threadptr. minptr point to the last thread created by this pool
 			pthread_t* minptr = threadptr + (pool_size- 1)*(sizeof(pthread_t));
-			flog(DEBUG_REGISTRY, "\nthreadptr  %p\nmaxthreadptr %p\n", (void*)*threadptr, (void*)*minptr);
+			log(DEBUG_REGISTRY, "\nthreadptr  %p\nmaxthreadptr %p\n",
+			   (void*)*threadptr, (void*)*minptr);
 		// confirm that currthread is in the contigous memory created for the threads in this pool
-		// size of heap alloc'd for these threads can vary,
+		// size of heap alloc'd for these threads can vary (for alignment reasons?),
 		// the thread_id is found with this taken into account.
         if( currthread <= *threadptr && currthread >= *minptr){
 			*thread_id = (*threadptr - currthread) /
 				((*threadptr - *minptr) / (pool_size - 1));
-			flog(DEBUG_REGISTRY, "found currthread %p, thread_id %p / %p = %d \n",
+			log(DEBUG_REGISTRY, "found currthread %p, thread_id %p / %p = %d \n",
 				(void*)currthread, (void*)(*threadptr - currthread),
 				(void*)((*threadptr - *minptr) / (pool_size - 1) ), *thread_id );
             break;
@@ -59,7 +60,6 @@ void match_registered_pool(Pool** p, int* thread_id){
     }
     *p = curr->pool;
 }
-
 
 
 static void* pull_from_queue(void* arg){
@@ -74,8 +74,8 @@ static void* pull_from_queue(void* arg){
 	// register return env with scheduler
 	jmp_buf* env = (jmp_buf*)malloc(sizeof(jmp_buf));
 	if (setjmp(*env) == JMP_TO_POOL){
-		flog(DEBUG_SCHED, "thread_id %d jumped back\n", thread_id);
-		printchan_sched(chan_scheduler);
+		log(DEBUG_SCHED, "thread_id %d jumped back\n", thread_id);
+		//printchan_sched(chan_scheduler);
 		pthread_cond_broadcast(&(pool->hold_threads));
 		goto startpulling;
 	}
@@ -114,7 +114,8 @@ startpulling:
 		// take a pending env that this thread has queued to run, and longjmp to it
 		node* pending_env = hashtable_remove(chan_scheduler->pending_envs, thread_id);
 		if (pending_env){
-			log(DEBUG_SCHED, "thread %d jumping to pending env %p\n", thread_id, ((jmp_buf*)(pending_env->val))[0]);
+			log(DEBUG_SCHED, "thread %d jumping to pending env %p\n", thread_id,
+			    ((jmp_buf*)(pending_env->val))[0]);
 			longjmp(((jmp_buf*)(pending_env->val))[0], JMP_RESUME_PENDING);
 		}
 		//break if signalled to terminate on empty queue and queue is empty			
@@ -129,18 +130,18 @@ void push_to_queue(Pool* pool, function_ptr f, void* args, char block){
 	//this function is will be used to store a pointer to a function in a queue
 	//pointers must point to function of type void, which takes in a void*
 	
-	pthread_mutex_lock(&(pool->queue_guard_mtx));		// lock mutex to access queue
+	pthread_mutex_lock(&(pool->queue_guard_mtx));  // lock mutex to access queue
 
 	pool->remaining_work++;
 	
 	QueueObj* insert = (QueueObj*)malloc(sizeof(QueueObj));
 	insert->func =f;
 	insert->args = args;  //this function can be called with:(*insert->func)(insert->args);
-	add_node((void*)insert ,&(pool->queue));		//push into pool queue 
+	add_node((void*)insert ,&(pool->queue));  //push into pool queue 
 	int i;
 	for (i = 0; i < pool->pool_size; i++){
 		if(*(pool->thread_active + i)){
-			*(pool->thread_active + i) = 1;		//only wake one thread at a time
+			*(pool->thread_active + i) = 1;  //only wake one thread at a time
 			break;
 		}
 	}
@@ -161,7 +162,8 @@ void push_to_queue(Pool* pool, function_ptr f, void* args, char block){
 		//now signal all threads which are not active to advance them past the cond_wait() block
 		if(pool->exit_on_empty_queue){
 			//wait for threads to exit if needed
-			memset(pool->thread_active, 1, pool->pool_size*sizeof(char));	//mark all threads as active to escape while loop
+			//mark all threads as active to escape while loop
+			memset(pool->thread_active, 1, pool->pool_size*sizeof(char));	
 			while(pool->living_threads)pthread_cond_broadcast(&(pool->hold_threads));
 		}
 	}
@@ -202,12 +204,12 @@ void init_pool(Pool* pool, char pool_size){
 	//initialise cond variables for all threads
 	int i;
 	for(i=0; i < pool->pool_size; i++){		
-		Args* new_args = (Args*)malloc(sizeof(Args));		//struct for args
+		Args* new_args = (Args*)malloc(sizeof(Args));  //struct for args
 		new_args->thread_id = i;
 		new_args->pool = pool;
 		log(DEBUG_THREADPOOL, "created thread id = %d\n", i);
 
-		pthread_create(thr_p, NULL, pull_from_queue, (void *)(new_args));	// create threads
+		pthread_create(thr_p, NULL, pull_from_queue, (void *)(new_args));  // create threads
 
 		while((pool->hold_threads).__align == 2*i);		
 		// this ensures that threads are created in order and each thread is created properly
@@ -216,16 +218,17 @@ void init_pool(Pool* pool, char pool_size){
 		//advance pointer
 		thr_p += sizeof(pthread_t);
 	}
-	
 	// add pool to the registry of all pools being used
 	register_pool(&pool);
 }
 
 void cleanup(Pool* pool){
-	//free() up memory that has been malloced
+	// free() up memory that has been malloced
 	free(pool->threads_pointer);
 	free(pool->thread_active);
 	unregister_pool(&pool);
+	sched_destroy(pool->chan_scheduler);
+	free(pool->chan_scheduler);
 }
 
 

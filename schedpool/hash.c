@@ -15,7 +15,6 @@ int hashfunc_sumpointer(hashtable* h, int key){
     return hash % h->table_size;
 }
 
-
 hashtable* hashtable_create(int table_size, int use_chaining, hashfunc hashf){
     hashtable* h = (hashtable*)malloc(sizeof(hashtable));
     h->table_size = table_size;
@@ -38,10 +37,8 @@ void hashtable_print(hashtable* h){
         printf("\n");
     }
 }
-// hashtable_insert will append duplicates onto the same linkedlist, and 
-// hashtable_remove will remove duplicates in the order that they were put in.
-// this means that multiple goroutines can all talk to the same channel, and the
-// order which these messages are pulled from the queue will be logical?
+
+// hashtable_insert will append duplicates onto the same linkedlist
 void hashtable_insert(hashtable* h, unsigned long key, void* val){
     int indx = h->hashfunc(h, key);
     pthread_mutex_lock(&(h->hashlock));
@@ -117,6 +114,7 @@ void hashtable_cleanup(hashtable* h){
     free(h->table);
 }
 
+/*
 static void test(){
     hashtable* h;
     const int table_size = 10;
@@ -140,6 +138,6 @@ static void test(){
     free(h);
 }
 
-// int main(){
-//      test();
-// }
+int main(){
+     test();
+} */

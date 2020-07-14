@@ -2,7 +2,5 @@ SCHEDPOOL = schedpool/threadpool.c schedpool/sched.c schedpool/hash.c  schedpool
 FILES = vision.c chan.c $(SCHEDPOOL)
 
 basic: $(FILES)
-	gcc -Wall $(FILES) -o run -lpthread
+	gcc -Wall $(FILES) -o vision -lpthread
 
-#debug:
-#	g++ -g $(FILES) -o run -lpthread

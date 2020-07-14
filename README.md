@@ -43,8 +43,8 @@ Ideally you could find some way to ensure that these stack frames will exist, an
 2. Thread B runs and unblocks the channel for A, and then retriggers A inside pull_from_queue
 3. Segmentation fault (core dumped)
 ```
- When the unblocking function call retriggers the pull_from_queue in thread A, thread A tries to jump to an address which is lower down on the stack (ie. it tries to restart the previously blocked function).
- However, since this is lower in the stack than the pull_from_queue, the stack unwinding cannot find this address, and we get a segfault. 
+ When the unblocking function call retriggers the `pull_from_queue` in thread A, thread A tries to jump to an address which is lower down on the stack (ie. it tries to restart the previously blocked function).
+ However, since this is lower in the stack than the `pull_from_queue`, the stack unwinding cannot find this address, and we get a segfault. 
 
 
 #### further design comments

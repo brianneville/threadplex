@@ -34,4 +34,5 @@ void sched_init(sched** s, int pool_size);
 void sched_pushing_full(sched* chan_scheduler, uint key, int thread_id, pthread_mutex_t* mtx);
 void sched_pulling_empty(sched* chan_scheduler, uint key, int thread_id, pthread_mutex_t* mtx);
 void printchan_sched(sched* chan_scheduler);
+void sched_destroy(sched* s);
 #endif
