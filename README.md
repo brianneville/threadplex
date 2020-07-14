@@ -1,5 +1,10 @@
 # threadplex
 
+
+*Work on this project has been suspended, as the current implementation which relies on scheduled coroutine-style setjmp/longjmp calls is not viable*
+This implmentation would work in a world where C supported stack rewinding.
+
+
 ### goal
 
 The goal here is to be able to allow channel operations (pushing items into a channel and withdrawing items from a channel) to work between functions that are pushed into a thread pool.
