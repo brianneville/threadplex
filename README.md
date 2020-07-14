@@ -53,14 +53,14 @@ Ideally you could find some way to ensure that these stack frames will exist, an
 
 Perhaps I could make this work, but it would be expensive and it would absolutely kill the coroutine-esque style of concurrency that I'm going for here. Using makecontext would essentially be like creating more threads to handle blocking operation. 
 
-At that point, I may as well just spin up contexts (or new threads) for each function that get pushed into the thread pool, assign them all condition variables, and wake these threads whenever they become unblocked. 
+At that point, I may as well just spin up contexts (or new threads) for each function that gets pushed into the thread pool, assign them all condition variables, and wake these threads whenever they become unblocked. 
 Additionally, ucontext_t functions are not POSIX, and so should be avoided for compatability reasons.
 
 - why I need both pending_envs *and* env_to_id?
 
-`pull_from_queue` only has access to the thread_id, and needs to use this to find the env that it should jmp to - therefore to avoid o(n) search through all envs, it should use a map[id]env this is done with the `hashtable* pending_envs`.
+`pull_from_queue` only has access to the thread_id, and needs to use this to find the env that it should jmp to - therefore to avoid o(n) search through all envs, it should use a map[id]env. This is done with the `hashtable* pending_envs`.
 
-Scheduler needs to know which thread_id an env belongs to, when given only this env. Therefore to avoid having to loop o(n) through all thread_ids in the map[id]env, it should use a map[env]id this is done with the `hashtable* env_to_id`.
+Scheduler needs to know which thread_id an env belongs to, when given only this env. Therefore to avoid having to loop o(n) through all thread_ids in the map[id]env, it should use a map[env]id. This is done with the `hashtable* env_to_id`.
 
 - why isnt it all just coroutine-style jmp-ing on top of a thread pool?
 
