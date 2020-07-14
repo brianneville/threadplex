@@ -21,11 +21,10 @@ void chan_funcA(void* args){
 	int* second = (int*)malloc(sizeof(int));
 	*second = 456;
     ch_push(channel, (void*)(second));
-    printf("A pushed second=%d\n", *second);
 }
 
 void chan_funcB(void* args){
-	sleep(1);
+	sleep(2);
     chan* channel = (chan*)args;
     int* first;
     first = (int*)ch_pull(channel);

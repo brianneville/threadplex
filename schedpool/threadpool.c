@@ -66,6 +66,7 @@ static void* pull_from_queue(void* arg){
 	Args* args = (Args*)arg;
 	int thread_id = args->thread_id;
 	Pool* pool = args->pool;
+	sched* chan_scheduler = pool->chan_scheduler;
 	char *act = (pool->thread_active + thread_id);
 	//pop node from queue
 	xNode* queue_item;
@@ -74,16 +75,18 @@ static void* pull_from_queue(void* arg){
 	jmp_buf* env = (jmp_buf*)malloc(sizeof(jmp_buf));
 	if (setjmp(*env) == JMP_TO_POOL){
 		flog(DEBUG_SCHED, "thread_id %d jumped back\n", thread_id);
+		printchan_sched(chan_scheduler);
+		pthread_cond_broadcast(&(pool->hold_threads));
 		goto startpulling;
 	}
 	// store reference to this env in the env_store
-	jmp_buf** iter = &(pool->chan_scheduler->env_store);
+	jmp_buf** iter = &(chan_scheduler->env_store);
 	*(iter+thread_id*sizeof(jmp_buf))= env;
 
 	while (1){	
 startpulling:
 		pthread_mutex_lock(&(pool->queue_guard_mtx));
-		while (!pool->queue.tail && !(*act)){
+		while (!pool->queue.tail && !(*act) && !hashtable_find(chan_scheduler->pending_envs, thread_id)){
  			log(DEBUG_THREADPOOL, "thread %d is sleeping\n", thread_id);
 				if (!pool->remaining_work && !pool->queue.tail){
 					//if all work from other threads has been done
@@ -107,9 +110,15 @@ startpulling:
 			pool->remaining_work--;
 			*act = 0;
 		}
+
+		// take a pending env that this thread has queued to run, and longjmp to it
+		node* pending_env = hashtable_remove(chan_scheduler->pending_envs, thread_id);
+		if (pending_env){
+			log(DEBUG_SCHED, "thread %d jumping to pending env %p\n", thread_id, ((jmp_buf*)(pending_env->val))[0]);
+			longjmp(((jmp_buf*)(pending_env->val))[0], JMP_RESUME_PENDING);
+		}
 		//break if signalled to terminate on empty queue and queue is empty			
 		if (pool->exit_on_empty_queue && !pool->queue.tail && !pool->updating_queue)break;
-
 	}
 	pool->living_threads--;
 	log(DEBUG_THREADPOOL, "\033[1;31mExiting thread %d \033[0m\n", thread_id  );

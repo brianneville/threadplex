@@ -61,27 +61,46 @@ void hashtable_insert(hashtable* h, unsigned long key, void* val){
     pthread_mutex_unlock(&(h->hashlock));
 }
 
-void* hashtable_remove(hashtable* h, unsigned long key){
+static node* hashtable_remove_internal(hashtable* h, unsigned long key, int useval, void* val){
     int indx = h->hashfunc(h, key);
     pthread_mutex_lock(&(h->hashlock));
     node** headptr = &(h->table[indx]);
-    while(*headptr != NULL && (*headptr)->key != key){
-        headptr = &(*headptr)->next;
+    while(*headptr != NULL && (*headptr)->key != key &&  (*headptr)->val != val){
+        findanother: headptr = &(*headptr)->next;
     }
+    if(*headptr && (*headptr)->val != val && useval)goto findanother;
     node* out = *headptr;
     // "i can do this with the comma operator"
     return (!out) ? (pthread_mutex_unlock(&(h->hashlock)), NULL) :
-    (free(*headptr), *headptr = (out)->next, pthread_mutex_unlock(&(h->hashlock)), out->val);
+    (free(*headptr), *headptr = (out)->next, pthread_mutex_unlock(&(h->hashlock)), out);
 }
 
-// hashtable_find returns the item if found, NULL if not present
-node* hashtable_find(hashtable* h, unsigned long key){
+node* hashtable_remove(hashtable* h, unsigned long key){
+    return hashtable_remove_internal(h, key, 0, NULL);
+}
+
+node* hashtable_removewithval(hashtable* h, unsigned long key, void* val){
+    return hashtable_remove_internal(h, key, 1, val);
+}
+
+static node* hashtable_find_internal(hashtable* h, unsigned long key, int useval, void* val){
     int indx = h->hashfunc(h, key);
     node* head = h->table[indx];
     while(head && head->key != key){
-        head = head->next;
+        findanother: head = head->next;
     }
+    if(head && head->val != val && useval)goto findanother;
     return head;
+}
+
+
+// hashtable_find returns the item if found, NULL if not present
+node* hashtable_find(hashtable* h, unsigned long key){
+    return hashtable_find_internal(h, key, 0, NULL);
+}
+
+node* hashtable_findwithval(hashtable* h, unsigned long key, void* val){
+    return hashtable_find_internal(h, key, 1, val);
 }
 
 void hashtable_cleanup(hashtable* h){
@@ -109,14 +128,14 @@ static void test(){
     hashtable_insert(h, 0, (void*)5);
     hashtable_print(h);
     void* out;
-    out = hashtable_remove(h, 12);
+    out = hashtable_removewithval(h, 12, (void*)111);
     printf("out is %p\n", out);
     hashtable_print(h);
     out = hashtable_remove(h, 12);
     printf("out is %p\n", out);
     hashtable_print(h);
     printf("item found: %p\n",hashtable_find(h, 9));
-    printf("item found: %p\n",hashtable_find(h, 22));
+    printf("item found: %p\n",hashtable_findwithval(h, 22, (void*)3));
     hashtable_cleanup(h);
     free(h);
 }

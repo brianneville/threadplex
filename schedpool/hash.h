@@ -40,9 +40,11 @@ void hashtable_insert(hashtable* h, unsigned long key, void* val);
 
 // find node by key
 node* hashtable_find(hashtable* h, unsigned long key);
+node* hashtable_findwithval(hashtable* h, unsigned long key, void* val);
 
 //remove item from hashtable
-void* hashtable_remove(hashtable* h, unsigned long key);
+node* hashtable_remove(hashtable* h, unsigned long key);
+node* hashtable_removewithval(hashtable* h, unsigned long key, void* val);
 
 //print contents of hashtable
 void hashtable_print(hashtable* h);

@@ -1,5 +1,35 @@
 setjmp/jongjmp is undefined cross-thread. 
     * https://stackoverflow.com/questions/38234546/setjmp-longjmp-between-threads-to-handle-timeout
     * https://pubs.opengroup.org/onlinepubs/9699919799/functions/longjmp.html 
-I should use ucontext_t instead, in a similar way
+should I use ucontext_t instead, in a similar way?
     * https://mail-index.netbsd.org/tech-kern/2012/08/09/msg013767.html
+
+
+why I need pending_envs and env_to_id
+- pull_from_queue only has access to the thread_id, and needs to use this to find the env that 
+  it should jmp to - therefore to avoid o(n) search through all envs, it should use a map[id]env
+    this is done with the hashtable* pending_envs
+
+- scheduler needs to know which thread_id an env belongs to, when given only this env.
+   therefore to avoid having to loop o(n) through all thread_ids in the map[id]env, it should use
+   a map[env]id
+    this is done with thie hashtable* env_to_id
+
+
+design problems: 
+ as per: https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/longjmp?view=vs-2019 :
+ "Only call longjmp before the function that called setjmp returns; otherwise the results are
+  unpredictable."
+ when doing a longjmp, the stack is unwound to find the position that it should jump to. 
+ stack view:
+
+    top of stack thread A             :    top of stack thread B          
+                                      :
+ pull_from_queue <-------<-----<      :    pull_from_queue ------------_
+                         |     |      :                                | 
+ blocking function call -^     ^=========== unblocking function call <-<
+                                      : 
+ when the unblocking function call retriggers the pull_from_queue in thread A, thread A tries to 
+ jump to an address which is lower down on the stack (ie. it tries to restart the previously
+ blocked function). However, since this is lower in the stack than the pull_from_queue, the stack
+ unwinding cannot find this address, and we get a segfault. 

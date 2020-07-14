@@ -8,3 +8,11 @@
 - make sure that pull_from_queue waits until there are no envs in either hash_pull or hash_push
   which match the current thread_id. if there are envs that match the current thread_id, they might 
   eventually get unblocked by another thread's functions.
+
+----------------------------------------------------------------------------------------------------
+refactoring: 
+- combine both functions from sched_pushing_full and sched_pulling_empty into one.
+
+- format everything into gofmt style
+
+- either make everything use xor_ll, or remove it and replace with generic queue linkedlist.
