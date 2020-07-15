@@ -2,7 +2,7 @@
 
 *Work on this project has been suspended, as the current implementation which relies on scheduled coroutine-style setjmp/longjmp calls is not viable.*
 
-This implementation would work in a world where C supported stack rewinding.
+This implementation would work in a world where C supported stack rewinding. (i.e. longjmp would rewind stack frames)
 
 
 ### goal
