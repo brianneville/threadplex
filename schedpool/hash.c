@@ -21,7 +21,7 @@ hashtable* hashtable_create(int table_size, int use_chaining, hashfunc hashf){
     h->table = (node**)calloc(table_size, sizeof(node*));
     h->use_chaining = use_chaining;
     h->hashfunc = hashf;
-	pthread_mutex_init(&(h->hashlock), NULL);
+    pthread_mutex_init(&(h->hashlock), NULL);
     return h;
 }
 

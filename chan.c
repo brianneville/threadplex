@@ -10,7 +10,7 @@ chan* ch_make(int buffer){
     ch->id = maxID;
     ch->buf_head = -1;
     ch->pull_head = 0;
-  	pthread_mutex_init(&ch->lock, NULL);
+    pthread_mutex_init(&ch->lock, NULL);
     maxID++;
     return ch;
 }
